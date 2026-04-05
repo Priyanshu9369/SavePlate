@@ -2,20 +2,40 @@
 //  ContentView.swift
 //  SavePlate
 //
-//  Created by Priyanshu Yadav on 01/04/26.
-//
 
 import SwiftUI
 
 struct ContentView: View {
+    @State private var store = DonationStore()
+    @State private var session = AppSession()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            switch session.path {
+            case .landing:
+                LandingView()
+                    .environment(session)
+            case .donor:
+                DonorRootTabView()
+                    .environment(store)
+                    .environment(session)
+            case .receiver:
+                ReceiverHomeView()
+                    .environment(store)
+                    .environment(session)
+            }
         }
-        .padding()
+        .onChange(of: session.path) { _, newPath in
+            switch newPath {
+            case .donor: store.userRole = .donor
+            case .receiver: store.userRole = .receiver
+            case .landing: break
+            }
+        }
+        .onAppear {
+            if session.path == .donor { store.userRole = .donor }
+            if session.path == .receiver { store.userRole = .receiver }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "saveplate1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
