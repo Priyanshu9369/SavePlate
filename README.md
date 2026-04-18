@@ -25,6 +25,13 @@ https://github.com/Priyanshu9369/SavePlate
 ## 📊 Conclusion
 This system helps in minimizing food waste and supports efficient redistribution using modern technology.
 
+## 🚀 Features
+- User can donate excess food easily
+- Real-time food listing system
+- Users can request available food
+- Location-based food distribution
+- Simple and user-friendly interface
+
 ## 📌 Project Explanation
 
 SavePlate is a smart platform developed to reduce food wastage by connecting food donors (such as restaurants, hostels, and individuals) with receivers (NGOs, needy people, etc.) in real-time.
