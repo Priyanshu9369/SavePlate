@@ -39,6 +39,12 @@ struct EditDonorProfileView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel = EditDonorProfileViewModel()
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case name
+        case homeArea
+    }
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -66,19 +72,15 @@ struct EditDonorProfileView: View {
 
                 fieldCaps("NAME OF DONOR")
                 TextField("e.g. Hearthside Bistro", text: $viewModel.donorName)
+                    .focused($focusedField, equals: .name)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                     .padding(14)
                     .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(HearthTokens.outlineVariant.opacity(0.35)))
 
                 fieldCaps("YOUR SPACE")
-                TextField("Neighborhood, city, or area for matching", text: $viewModel.homeArea)
-                    .padding(14)
-                    .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(HearthTokens.outlineVariant.opacity(0.35)))
-
-                Text("We match surplus listings and NGO needs using this area when possible.")
-                    .font(.caption)
-                    .foregroundStyle(HearthTokens.onSurfaceVariant)
+                yourSpaceEditorCard(text: $viewModel.homeArea)
 
                 Button(action: saveTapped) {
                     HStack {
@@ -101,21 +103,46 @@ struct EditDonorProfileView: View {
         .hearthScreenBackground()
         .navigationTitle("Edit Donor Profile")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(HearthTokens.primary)
-                }
-            }
-        }
         .hearthNavBar()
         .onAppear {
             viewModel.load(from: store)
         }
+    }
+
+    private func yourSpaceEditorCard(text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "location.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(HearthTokens.primary)
+                    .symbolRenderingMode(.hierarchical)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Where you share surplus")
+                        .font(HearthFont.body(13, weight: .semibold))
+                        .foregroundStyle(HearthTokens.onSurface)
+                    TextField(
+                        "Enter your area (e.g., Gurgaon Sector 14)",
+                        text: text,
+                        axis: .vertical
+                    )
+                    .lineLimit(4)
+                    .focused($focusedField, equals: .homeArea)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                }
+            }
+            Text("We match listings and NGO needs using this area when possible.")
+                .font(.caption)
+                .foregroundStyle(HearthTokens.onSurfaceVariant)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(HearthTokens.primary.opacity(0.12), lineWidth: 1)
+        )
+        .hearthAmbientShadow()
     }
 
     private var donorCategoryPicker: some View {
