@@ -7,22 +7,12 @@ import SwiftUI
 
 struct DonorProfileView: View {
     @Environment(DonationStore.self) private var store
-    @Environment(AppSession.self) private var session
     @Environment(AuthManager.self) private var auth
-
-    private var homeAreaBinding: Binding<String> {
-        Binding(
-            get: { store.homeArea },
-            set: { store.homeArea = $0 }
-        )
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 22) {
-                    yourSpaceSection
-
                     profileHeaderSection
 
                     donorTypeRow
@@ -40,17 +30,19 @@ struct DonorProfileView: View {
                                 .foregroundStyle(HearthColor.forest)
                         }
                         .buttonStyle(.plain)
+                    }
 
-                        Button {
-                            auth.logout()
-                        } label: {
-                            Text("Sign out")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .foregroundStyle(HearthTokens.primary)
-                        }
+                    yourSpaceSummaryCard
+
+                    Button {
+                        auth.logout()
+                    } label: {
+                        Text("Sign out")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(HearthTokens.primary)
                     }
 
                     if let email = auth.currentUserEmail {
@@ -58,15 +50,6 @@ struct DonorProfileView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
-                    Button(role: .destructive) {
-                        auth.logout()
-                        session.returnToLanding()
-                    } label: {
-                        Text("Switch journey (Donor / Receiver)")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .padding(.top, 12)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)
@@ -79,21 +62,6 @@ struct DonorProfileView: View {
     }
 
     // MARK: - Sections
-
-    private var yourSpaceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Your space")
-                .font(.headline)
-            Text("Home or service area for matching with nearby NGOs.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Neighborhood, city, or area", text: homeAreaBinding)
-                .textFieldStyle(.roundedBorder)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
 
     private var profileHeaderSection: some View {
         VStack(spacing: 12) {
@@ -148,11 +116,51 @@ struct DonorProfileView: View {
         .padding(14)
         .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
+
+    /// Read-only summary — editing happens in `EditDonorProfileView` only.
+    private var yourSpaceSummaryCard: some View {
+        let area = store.homeArea.trimmingCharacters(in: .whitespacesAndNewlines)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(HearthTokens.primary)
+                    .frame(width: 40, height: 40)
+                    .background(HearthTokens.mintTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your space")
+                        .font(.headline)
+                    Text("Service area for NGO matching")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if area.isEmpty {
+                Text("No area saved yet. Tap Edit donor profile above to add where you usually share surplus.")
+                    .font(.subheadline)
+                    .foregroundStyle(HearthTokens.onSurfaceVariant)
+            } else {
+                Text(area)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(HearthTokens.onSurface)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(HearthTokens.outlineVariant.opacity(0.25), lineWidth: 1)
+        )
+        .hearthAmbientShadow()
+    }
 }
 
 #Preview {
     DonorProfileView()
         .environment(DonationStore())
-        .environment(AppSession())
         .environment(AuthManager())
 }
