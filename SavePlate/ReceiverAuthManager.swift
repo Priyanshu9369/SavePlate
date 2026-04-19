@@ -153,6 +153,12 @@ final class ReceiverAuthManager {
         if let name = currentDisplayName, !name.isEmpty {
             store.receiverProfileName = name
         }
+        if let kind = currentKind {
+            store.receiverAvatarSymbol = (kind == .ngo) ? "building.2.fill" : "person.fill"
+            store.receiverBio = (kind == .ngo)
+                ? "Verified NGO receiver serving the needy with transparent community distribution."
+                : "Verified individual receiver helping ensure food reaches nearby families in need."
+        }
         if let id = currentIdentifier {
             if id.contains("@") {
                 store.accountEmail = id

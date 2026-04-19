@@ -17,6 +17,9 @@ final class DonationStore {
     private let accountEmailKey = "hearth.accountEmail"
     private let receiverProfileNameKey = "hearth.receiverProfileName"
     private let receiverCityKey = "hearth.receiverCity"
+    private let receiverAvatarSymbolKey = "hearth.receiver.avatarSymbol"
+    private let receiverBioKey = "hearth.receiver.bio"
+    private let receiverClaimsKey = "hearth.receiver.claimHistory"
 
     var donations: [Donation] = []
     var pledgedUrgentRequestIDs: Set<UUID> = []
@@ -48,6 +51,25 @@ final class DonationStore {
 
     var receiverCity: String = "Seattle, WA" {
         didSet { UserDefaults.standard.set(receiverCity, forKey: receiverCityKey) }
+    }
+
+    /// SF Symbol avatar used for receiver profile mock picture.
+    var receiverAvatarSymbol: String = "person.fill" {
+        didSet { UserDefaults.standard.set(receiverAvatarSymbol, forKey: receiverAvatarSymbolKey) }
+    }
+
+    /// Short legitimacy description on receiver profile.
+    var receiverBio: String = "Verified receiver helping distribute food responsibly to people in need." {
+        didSet { UserDefaults.standard.set(receiverBio, forKey: receiverBioKey) }
+    }
+
+    /// Mock claim history list shown in receiver profile.
+    var receiverClaimHistory: [ReceiverClaimRecord] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverClaimHistory) {
+                UserDefaults.standard.set(data, forKey: receiverClaimsKey)
+            }
+        }
     }
 
     let mealGoal: Int = 500
@@ -106,6 +128,18 @@ final class DonationStore {
         if let c = UserDefaults.standard.string(forKey: receiverCityKey), !c.isEmpty {
             receiverCity = c
         }
+        if let avatar = UserDefaults.standard.string(forKey: receiverAvatarSymbolKey), !avatar.isEmpty {
+            receiverAvatarSymbol = avatar
+        }
+        if let bio = UserDefaults.standard.string(forKey: receiverBioKey), !bio.isEmpty {
+            receiverBio = bio
+        }
+        if let data = UserDefaults.standard.data(forKey: receiverClaimsKey),
+           let decoded = try? JSONDecoder().decode([ReceiverClaimRecord].self, from: data) {
+            receiverClaimHistory = decoded
+        } else {
+            seedReceiverClaimHistory()
+        }
         let hadStoredDonations = UserDefaults.standard.object(forKey: donationsKey) != nil
         load()
         loadPledged()
@@ -160,6 +194,33 @@ final class DonationStore {
                 notes: "Non-veg; consumed quickly.",
                 createdAt: cal.date(byAdding: .day, value: -3, to: now) ?? now,
                 isCancelled: false
+            ),
+        ]
+    }
+
+    private func seedReceiverClaimHistory() {
+        let now = Date()
+        receiverClaimHistory = [
+            ReceiverClaimRecord(
+                id: UUID(),
+                title: "Vegetable meal boxes",
+                quantityText: "12 plates",
+                pointsUsed: 40,
+                claimedAt: now.addingTimeInterval(-2 * 86400)
+            ),
+            ReceiverClaimRecord(
+                id: UUID(),
+                title: "Rice and dal packs",
+                quantityText: "8 kg",
+                pointsUsed: 28,
+                claimedAt: now.addingTimeInterval(-5 * 86400)
+            ),
+            ReceiverClaimRecord(
+                id: UUID(),
+                title: "Fruit and bread combo",
+                quantityText: "15 packs",
+                pointsUsed: 34,
+                claimedAt: now.addingTimeInterval(-8 * 86400)
             ),
         ]
     }

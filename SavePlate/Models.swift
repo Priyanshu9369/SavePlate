@@ -163,6 +163,14 @@ struct MilestoneBadge: Identifiable, Hashable {
     let symbolName: String
 }
 
+struct ReceiverClaimRecord: Identifiable, Codable, Equatable {
+    var id: UUID
+    var title: String
+    var quantityText: String
+    var pointsUsed: Int
+    var claimedAt: Date
+}
+
 enum DonationTimeFilter: String, CaseIterable, Identifiable {
     case all
     case active
