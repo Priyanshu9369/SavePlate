@@ -15,6 +15,8 @@ final class DonationStore {
     private let kitchenNameKey = "hearth.kitchenName"
     private let donorCategoryKey = "hearth.donorCategory"
     private let accountEmailKey = "hearth.accountEmail"
+    private let receiverProfileNameKey = "hearth.receiverProfileName"
+    private let receiverCityKey = "hearth.receiverCity"
 
     var donations: [Donation] = []
     var pledgedUrgentRequestIDs: Set<UUID> = []
@@ -37,6 +39,15 @@ final class DonationStore {
 
     var accountEmail: String = "" {
         didSet { UserDefaults.standard.set(accountEmail, forKey: accountEmailKey) }
+    }
+
+    /// Shown on NGO / receiver home (e.g. “Harvest Hope NGO”).
+    var receiverProfileName: String = "Harvest Hope NGO" {
+        didSet { UserDefaults.standard.set(receiverProfileName, forKey: receiverProfileNameKey) }
+    }
+
+    var receiverCity: String = "Seattle, WA" {
+        didSet { UserDefaults.standard.set(receiverCity, forKey: receiverCityKey) }
     }
 
     let mealGoal: Int = 500
@@ -89,6 +100,12 @@ final class DonationStore {
             donorKitchenCategory = cat
         }
         accountEmail = UserDefaults.standard.string(forKey: accountEmailKey) ?? ""
+        if let rn = UserDefaults.standard.string(forKey: receiverProfileNameKey), !rn.isEmpty {
+            receiverProfileName = rn
+        }
+        if let c = UserDefaults.standard.string(forKey: receiverCityKey), !c.isEmpty {
+            receiverCity = c
+        }
         let hadStoredDonations = UserDefaults.standard.object(forKey: donationsKey) != nil
         load()
         loadPledged()
