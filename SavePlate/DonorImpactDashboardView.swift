@@ -157,9 +157,9 @@ struct DonorImpactDashboardView: View {
             let pct = growth.lastWeek > 0
                 ? Int((Double(growth.thisWeek - growth.lastWeek) / Double(growth.lastWeek)) * 100)
                 : 24
-            (Text("Your impact has grown by ")
-                + Text("\(pct)%").fontWeight(.bold).foregroundStyle(HearthColor.forest)
-                + Text(" since last month."))
+            Text("Your impact has grown by \(pct)% since last month.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -250,11 +250,9 @@ struct DonorImpactDashboardView: View {
                 }
             Text("Ready to increase your impact?")
                 .font(.headline)
-            (Text("There are currently ")
-                + Text("\(store.sampleUrgentRequests.count) active food rescue requests")
-                .fontWeight(.bold)
-                .foregroundStyle(HearthColor.terracotta)
-                + Text(" in your immediate area that need a sponsor."))
+            Text("There are currently \(store.sampleUrgentRequests.count) active food rescue requests in your immediate area that need a sponsor.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 

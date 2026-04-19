@@ -8,6 +8,7 @@ import SwiftUI
 struct DonorProfileView: View {
     @Environment(DonationStore.self) private var store
     @Environment(AppSession.self) private var session
+    @Environment(AuthManager.self) private var auth
 
     @State private var showCreate = false
     @State private var showSignIn = false
@@ -69,7 +70,7 @@ struct DonorProfileView: View {
                         Button {
                             showCreate = true
                         } label: {
-                            Text("Create donor profile")
+                            Text("Edit donor profile")
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
@@ -79,28 +80,40 @@ struct DonorProfileView: View {
                         Button {
                             showSignIn = true
                         } label: {
-                            Text("Sign in")
+                            Text("Account (sheet)")
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(HearthColor.forest, lineWidth: 1.5))
                                 .foregroundStyle(HearthColor.forest)
                         }
+
+                        Button {
+                            auth.logout()
+                        } label: {
+                            Text("Sign out")
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .foregroundStyle(HearthTokens.primary)
+                        }
+                    }
+
+                    if let email = auth.currentUserEmail {
+                        Text("Signed in as \(email)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
                     Button(role: .destructive) {
+                        auth.logout()
                         session.returnToLanding()
                     } label: {
                         Text("Switch journey (Donor / Receiver)")
                             .font(.subheadline.weight(.semibold))
                     }
                     .padding(.top, 12)
-
-                    if !store.accountEmail.isEmpty {
-                        Text("Signed in as \(store.accountEmail)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)

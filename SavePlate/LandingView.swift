@@ -164,7 +164,7 @@ struct LandingView: View {
 
     private var receiverCTA: some View {
         Button {
-            session.chooseReceiver()
+            session.chooseReceiverOnboarding()
         } label: {
             HStack(spacing: 14) {
                 ZStack {

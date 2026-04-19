@@ -8,6 +8,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var store = DonationStore()
     @State private var session = AppSession()
+    @State private var authManager = AuthManager()
 
     var body: some View {
         Group {
@@ -16,25 +17,47 @@ struct ContentView: View {
                 LandingView()
                     .environment(session)
             case .donor:
-                DonorRootTabView()
-                    .environment(store)
+                Group {
+                    if authManager.isAuthenticated {
+                        DonorRootTabView()
+                            .environment(store)
+                            .environment(session)
+                            .environment(authManager)
+                    } else {
+                        DonorAuthFlowView()
+                            .environment(store)
+                            .environment(session)
+                            .environment(authManager)
+                    }
+                }
+            case .receiverOnboarding:
+                ReceiverSubtypeView()
                     .environment(session)
-            case .receiver:
-                ReceiverHomeView()
+            case .receiverNGO, .receiverIndividual:
+                ReceiverRootTabView()
                     .environment(store)
                     .environment(session)
             }
         }
         .onChange(of: session.path) { _, newPath in
             switch newPath {
-            case .donor: store.userRole = .donor
-            case .receiver: store.userRole = .receiver
-            case .landing: break
+            case .donor:
+                store.userRole = .donor
+            case .receiverNGO, .receiverIndividual, .receiverOnboarding:
+                store.userRole = .receiver
+            case .landing:
+                break
             }
         }
         .onAppear {
-            if session.path == .donor { store.userRole = .donor }
-            if session.path == .receiver { store.userRole = .receiver }
+            switch session.path {
+            case .donor:
+                store.userRole = .donor
+            case .receiverNGO, .receiverIndividual, .receiverOnboarding:
+                store.userRole = .receiver
+            case .landing:
+                break
+            }
         }
     }
 }
