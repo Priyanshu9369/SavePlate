@@ -717,9 +717,7 @@ struct ReceiverFeedTab: View {
 struct ReceiverProfileTab: View {
     @Environment(DonationStore.self) private var store
     @Environment(AppSession.self) private var session
-
-    @State private var showSignIn = false
-    @State private var showNGORegister = false
+    @Environment(ReceiverAuthManager.self) private var receiverAuth
 
     var body: some View {
         NavigationStack {
@@ -740,6 +738,19 @@ struct ReceiverProfileTab: View {
                     }
                     Text(store.receiverProfileName)
                         .font(HearthFont.display(22, weight: .bold))
+
+                    if let kind = receiverAuth.currentKind {
+                        Text(kind == .ngo ? "NGO account" : "Individual account")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(HearthTokens.onSurfaceVariant)
+                    }
+
+                    if let id = receiverAuth.currentIdentifier {
+                        Label(id, systemImage: id.contains("@") ? "envelope.fill" : "phone.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(HearthTokens.onSurfaceVariant)
+                    }
+
                     Label(store.receiverCity, systemImage: "mappin.and.ellipse")
                         .font(.subheadline)
                         .foregroundStyle(HearthTokens.onSurfaceVariant)
@@ -755,40 +766,24 @@ struct ReceiverProfileTab: View {
                     .padding(.vertical, 8)
                     .background(HearthTokens.mintTint, in: Capsule())
 
-                    VStack(spacing: 12) {
-                        Button {
-                            showSignIn = true
-                        } label: {
-                            Text("Sign In")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(HearthTokens.primary, in: Capsule())
-                                .foregroundStyle(.white)
-                        }
-                        if session.isNGOReceiver {
-                            Button {
-                                showNGORegister = true
-                            } label: {
-                                Text("Join as NGO")
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(HearthTokens.surfaceContainerLow, in: Capsule())
-                                    .foregroundStyle(HearthTokens.primary)
-                            }
-                        }
-                    }
-
-                    Button(role: .destructive) {
+                    Button {
+                        receiverAuth.logout()
                         session.returnToReceiverOnboarding()
                     } label: {
-                        Text("Change receiver type")
+                        Text("Sign out")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(HearthTokens.surfaceContainerLow, in: Capsule())
+                            .foregroundStyle(HearthTokens.primary)
                     }
+
                     Button {
+                        receiverAuth.logout()
                         session.returnToLanding()
                     } label: {
                         Text("Exit to welcome")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(HearthTokens.secondary)
                     }
                 }
@@ -796,12 +791,6 @@ struct ReceiverProfileTab: View {
             }
             .hearthScreenBackground()
             .navigationTitle("Profile")
-            .sheet(isPresented: $showSignIn) {
-                AuthSignInView().environment(store)
-            }
-            .sheet(isPresented: $showNGORegister) {
-                NGORegistrationView().environment(store)
-            }
             .hearthNavBar()
         }
     }

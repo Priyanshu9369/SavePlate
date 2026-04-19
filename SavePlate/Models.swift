@@ -20,6 +20,28 @@ enum DonorKitchenCategory: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// Receiver ("I need food") account flavor for mock auth and routing.
+enum ReceiverAuthKind: String, CaseIterable, Codable, Hashable, Identifiable {
+    case ngo
+    case individual
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ngo: "NGO"
+        case .individual: "Individual"
+        }
+    }
+
+    var profileLabel: String {
+        switch self {
+        case .ngo: "NGO name"
+        case .individual: "Your name"
+        }
+    }
+}
+
 enum UserRole: String, CaseIterable, Codable, Identifiable {
     case donor
     case ngo

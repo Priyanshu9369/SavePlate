@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var store = DonationStore()
     @State private var session = AppSession()
     @State private var authManager = AuthManager()
+    @State private var receiverAuth = ReceiverAuthManager()
 
     var body: some View {
         Group {
@@ -31,12 +32,24 @@ struct ContentView: View {
                     }
                 }
             case .receiverOnboarding:
-                ReceiverSubtypeView()
-                    .environment(session)
-            case .receiverNGO, .receiverIndividual:
-                ReceiverRootTabView()
+                ReceiverAuthFlowView()
                     .environment(store)
                     .environment(session)
+                    .environment(receiverAuth)
+            case .receiverNGO, .receiverIndividual:
+                Group {
+                    if receiverAuth.isAuthenticated {
+                        ReceiverRootTabView()
+                            .environment(store)
+                            .environment(session)
+                            .environment(receiverAuth)
+                    } else {
+                        ReceiverAuthFlowView()
+                            .environment(store)
+                            .environment(session)
+                            .environment(receiverAuth)
+                    }
+                }
             }
         }
         .onChange(of: session.path) { _, newPath in
