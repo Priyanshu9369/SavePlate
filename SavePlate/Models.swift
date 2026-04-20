@@ -171,6 +171,15 @@ struct ReceiverClaimRecord: Identifiable, Codable, Equatable {
     var claimedAt: Date
 }
 
+struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
+    var id: UUID
+    var donorName: String
+    var foodDetails: String
+    var location: String
+    var createdAt: Date
+    var isRead: Bool
+}
+
 enum DonationTimeFilter: String, CaseIterable, Identifiable {
     case all
     case active

@@ -17,65 +17,63 @@ struct ReceiverProfileView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    profileHeader
-                    descriptionCard
+        ScrollView {
+            VStack(spacing: 20) {
+                profileHeader
+                descriptionCard
 
-                    VStack(spacing: 12) {
-                        NavigationLink {
-                            EditReceiverProfileView()
-                                .environment(store)
-                                .environment(session)
-                                .environment(receiverAuth)
-                        } label: {
-                            Text("Edit Profile")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(HearthTokens.mintTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .foregroundStyle(HearthTokens.primary)
-                        }
-                        .buttonStyle(.plain)
-
-                        NavigationLink {
-                            ReceiverHistoryView()
-                                .environment(store)
-                        } label: {
-                            Label("History", systemImage: "clock.arrow.circlepath")
-                                .fontWeight(.semibold)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .stroke(HearthTokens.outlineVariant.opacity(0.3), lineWidth: 1)
-                                )
-                                .foregroundStyle(HearthTokens.onSurface)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Button {
-                        receiverAuth.logout()
-                        session.returnToReceiverOnboarding()
+                VStack(spacing: 12) {
+                    NavigationLink {
+                        EditReceiverProfileView()
+                            .environment(store)
+                            .environment(session)
+                            .environment(receiverAuth)
                     } label: {
-                        Text("Sign Out")
+                        Text("Edit Profile")
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(HearthTokens.mintTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .foregroundStyle(HearthTokens.primary)
                     }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        ReceiverHistoryView()
+                            .environment(store)
+                    } label: {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(HearthTokens.outlineVariant.opacity(0.3), lineWidth: 1)
+                            )
+                            .foregroundStyle(HearthTokens.onSurface)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 28)
+
+                Button {
+                    receiverAuth.logout()
+                    session.returnToReceiverOnboarding()
+                } label: {
+                    Text("Sign Out")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .foregroundStyle(HearthTokens.primary)
+                }
             }
-            .hearthScreenBackground()
-            .navigationTitle("Profile")
-            .hearthNavBar()
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
         }
+        .hearthScreenBackground()
+        .navigationTitle("Profile")
+        .hearthNavBar()
     }
 
     private var profileHeader: some View {
@@ -279,6 +277,64 @@ struct ReceiverHistoryView: View {
         .navigationTitle("History")
         .navigationBarTitleDisplayMode(.inline)
         .hearthNavBar()
+    }
+}
+
+struct ReceiverNotificationsView: View {
+    @Environment(DonationStore.self) private var store
+
+    var body: some View {
+        Group {
+            if store.receiverNotifications.isEmpty {
+                ContentUnavailableView(
+                    "No notifications yet",
+                    systemImage: "bell.slash",
+                    description: Text("New donor posts will appear here.")
+                )
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(store.receiverNotifications.sorted(by: { $0.createdAt > $1.createdAt })) { item in
+                            notificationCard(item)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+        }
+        .hearthScreenBackground()
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+        .hearthNavBar()
+        .onAppear {
+            store.markAllReceiverNotificationsRead()
+        }
+    }
+
+    private func notificationCard(_ item: ReceiverNotificationItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(item.donorName, systemImage: "bell.badge.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(HearthTokens.primary)
+                Spacer()
+                Text(item.createdAt, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text(item.foodDetails)
+                .font(.body.weight(.semibold))
+            Label(item.location, systemImage: "mappin.and.ellipse")
+                .font(.caption)
+                .foregroundStyle(HearthTokens.onSurfaceVariant)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(item.isRead ? HearthTokens.outlineVariant.opacity(0.2) : HearthTokens.secondary.opacity(0.35), lineWidth: 1)
+        )
     }
 }
 

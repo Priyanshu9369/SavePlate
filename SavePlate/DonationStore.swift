@@ -20,6 +20,7 @@ final class DonationStore {
     private let receiverAvatarSymbolKey = "hearth.receiver.avatarSymbol"
     private let receiverBioKey = "hearth.receiver.bio"
     private let receiverClaimsKey = "hearth.receiver.claimHistory"
+    private let receiverNotificationsKey = "hearth.receiver.notifications"
 
     var donations: [Donation] = []
     var pledgedUrgentRequestIDs: Set<UUID> = []
@@ -70,6 +71,19 @@ final class DonationStore {
                 UserDefaults.standard.set(data, forKey: receiverClaimsKey)
             }
         }
+    }
+
+    /// Latest donor posts shown in receiver notification center.
+    var receiverNotifications: [ReceiverNotificationItem] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverNotifications) {
+                UserDefaults.standard.set(data, forKey: receiverNotificationsKey)
+            }
+        }
+    }
+
+    var receiverUnreadNotificationCount: Int {
+        receiverNotifications.filter { !$0.isRead }.count
     }
 
     let mealGoal: Int = 500
@@ -139,6 +153,12 @@ final class DonationStore {
             receiverClaimHistory = decoded
         } else {
             seedReceiverClaimHistory()
+        }
+        if let data = UserDefaults.standard.data(forKey: receiverNotificationsKey),
+           let decoded = try? JSONDecoder().decode([ReceiverNotificationItem].self, from: data) {
+            receiverNotifications = decoded
+        } else {
+            seedReceiverNotifications()
         }
         let hadStoredDonations = UserDefaults.standard.object(forKey: donationsKey) != nil
         load()
@@ -223,6 +243,50 @@ final class DonationStore {
                 claimedAt: now.addingTimeInterval(-8 * 86400)
             ),
         ]
+    }
+
+    private func seedReceiverNotifications() {
+        let now = Date()
+        receiverNotifications = [
+            ReceiverNotificationItem(
+                id: UUID(),
+                donorName: "Green Grove Cafe",
+                foodDetails: "15 vegetarian meal boxes",
+                location: "Koramangala 5th Block",
+                createdAt: now.addingTimeInterval(-2 * 60),
+                isRead: false
+            ),
+            ReceiverNotificationItem(
+                id: UUID(),
+                donorName: "Sunrise Community Kitchen",
+                foodDetails: "8 kg rice and curry",
+                location: "Indiranagar 12th Main",
+                createdAt: now.addingTimeInterval(-18 * 60),
+                isRead: false
+            ),
+            ReceiverNotificationItem(
+                id: UUID(),
+                donorName: "Hearth Bistro",
+                foodDetails: "22 packaged sandwich packs",
+                location: "HSR Layout",
+                createdAt: now.addingTimeInterval(-2 * 3600),
+                isRead: true
+            ),
+        ]
+    }
+
+    func markAllReceiverNotificationsRead() {
+        guard receiverUnreadNotificationCount > 0 else { return }
+        receiverNotifications = receiverNotifications.map {
+            ReceiverNotificationItem(
+                id: $0.id,
+                donorName: $0.donorName,
+                foodDetails: $0.foodDetails,
+                location: $0.location,
+                createdAt: $0.createdAt,
+                isRead: true
+            )
+        }
     }
 
     // MARK: - Persistence

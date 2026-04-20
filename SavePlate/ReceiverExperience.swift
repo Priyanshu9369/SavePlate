@@ -5,6 +5,11 @@
 
 import SwiftUI
 
+private enum ReceiverHomeRoute: Hashable {
+    case profile
+    case notifications
+}
+
 struct ReceiverRootTabView: View {
     @Environment(DonationStore.self) private var store
     @Environment(AppSession.self) private var session
@@ -42,13 +47,14 @@ struct ReceiverHomeTab: View {
 
     @State private var showMap = false
     @State private var showSignIn = false
+    @State private var routePath = NavigationPath()
 
     private var available: [Donation] {
         store.donations.filter(\.isActive).sorted { $0.expiry < $1.expiry }
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $routePath) {
             ZStack(alignment: .bottomTrailing) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
@@ -81,13 +87,25 @@ struct ReceiverHomeTab: View {
             .navigationDestination(for: Donation.self) { d in
                 ReceiverDonationDetailView(donation: d)
             }
+            .navigationDestination(for: ReceiverHomeRoute.self) { route in
+                switch route {
+                case .profile:
+                    ReceiverProfileView()
+                case .notifications:
+                    ReceiverNotificationsView()
+                }
+            }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(HearthTokens.primary)
+                    Button {
+                        routePath.append(ReceiverHomeRoute.profile)
+                    } label: {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(HearthTokens.primary)
+                    }
                 }
                 ToolbarItem(placement: .principal) {
                     Text(HearthBrand.name)
@@ -98,9 +116,20 @@ struct ReceiverHomeTab: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        routePath.append(ReceiverHomeRoute.notifications)
                     } label: {
-                        Image(systemName: "bell.badge.fill")
-                            .foregroundStyle(HearthTokens.primary)
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell.badge.fill")
+                                .foregroundStyle(HearthTokens.primary)
+                            if store.receiverUnreadNotificationCount > 0 {
+                                Text("\(min(store.receiverUnreadNotificationCount, 9))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(4)
+                                    .background(Color.red, in: Circle())
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
                     }
                 }
             }
@@ -716,6 +745,8 @@ struct ReceiverFeedTab: View {
 
 struct ReceiverProfileTab: View {
     var body: some View {
-        ReceiverProfileView()
+        NavigationStack {
+            ReceiverProfileView()
+        }
     }
 }
