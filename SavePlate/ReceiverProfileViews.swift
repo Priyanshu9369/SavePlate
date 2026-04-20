@@ -284,22 +284,23 @@ struct ReceiverNotificationsView: View {
     @Environment(DonationStore.self) private var store
     @Environment(AppSession.self) private var session
 
+    /// Smart notifications only (new food, approvals, daily limit, daily summary).
     private var sortedNotifications: [ReceiverNotificationItem] {
-        store.receiverNotifications.sorted { a, b in
-            let aSys = a.category == "system" || a.id == DonationStore.receiverDailyProgressNotificationID
-            let bSys = b.category == "system" || b.id == DonationStore.receiverDailyProgressNotificationID
-            if aSys != bSys { return aSys && !bSys }
+        store.receiverNotificationsFiltered.sorted { a, b in
+            let aSys = a.notifKind == "systemDaily" || a.id == DonationStore.receiverDailyProgressNotificationID
+            let bSys = b.notifKind == "systemDaily" || b.id == DonationStore.receiverDailyProgressNotificationID
+            if aSys != bSys { return !aSys && bSys ? false : aSys && !bSys }
             return a.createdAt > b.createdAt
         }
     }
 
     var body: some View {
         Group {
-            if store.receiverNotifications.isEmpty {
+            if sortedNotifications.isEmpty {
                 ContentUnavailableView(
                     "No notifications yet",
                     systemImage: "bell.slash",
-                    description: Text("New donor posts will appear here.")
+                    description: Text("You’ll see new food nearby, request updates, and daily limit alerts here — no spam.")
                 )
             } else {
                 ScrollView {
@@ -324,23 +325,38 @@ struct ReceiverNotificationsView: View {
     }
 
     private func notificationCard(_ item: ReceiverNotificationItem) -> some View {
-        let isSystem = item.category == "system" || item.id == DonationStore.receiverDailyProgressNotificationID
+        let isSystem = item.notifKind == "systemDaily"
+            || item.notifKind == "dailyLimit"
+            || item.category == "system"
+            || item.id == DonationStore.receiverDailyProgressNotificationID
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label(item.donorName, systemImage: isSystem ? "calendar.badge.clock" : "bell.badge.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(isSystem ? HearthTokens.secondary : HearthTokens.primary)
+                Text(smartKindTitle(item))
+                    .font(HearthFont.labelCaps(9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(HearthTokens.surfaceContainerLow, in: Capsule())
+                    .foregroundStyle(HearthTokens.secondary)
                 Spacer()
                 Text(item.createdAt, style: .relative)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(item.foodDetails)
-                .font(.body.weight(.semibold))
-            if !item.location.isEmpty {
-                Label(item.location, systemImage: isSystem ? "info.circle" : "mappin.and.ellipse")
-                    .font(.caption)
-                    .foregroundStyle(HearthTokens.onSurfaceVariant)
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: smartKindSymbol(item))
+                    .foregroundStyle(isSystem ? HearthTokens.secondary : HearthTokens.primary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.donorName)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(HearthTokens.onSurface)
+                    Text(item.foodDetails)
+                        .font(.body.weight(.semibold))
+                    if !item.location.isEmpty {
+                        Label(item.location, systemImage: isSystem ? "info.circle" : "mappin.and.ellipse")
+                            .font(.caption)
+                            .foregroundStyle(HearthTokens.onSurfaceVariant)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -350,6 +366,26 @@ struct ReceiverNotificationsView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(item.isRead ? HearthTokens.outlineVariant.opacity(0.2) : HearthTokens.secondary.opacity(0.35), lineWidth: 1)
         )
+    }
+
+    private func smartKindTitle(_ item: ReceiverNotificationItem) -> String {
+        switch item.notifKind {
+        case "newFood": return "New food"
+        case "requestApproved": return "Request approved"
+        case "dailyLimit": return "Daily limit"
+        case "systemDaily": return "Daily summary"
+        default: return "Update"
+        }
+    }
+
+    private func smartKindSymbol(_ item: ReceiverNotificationItem) -> String {
+        switch item.notifKind {
+        case "newFood": return "leaf.fill"
+        case "requestApproved": return "checkmark.seal.fill"
+        case "dailyLimit": return "hand.raised.fill"
+        case "systemDaily": return "calendar.badge.clock"
+        default: return "bell.fill"
+        }
     }
 }
 

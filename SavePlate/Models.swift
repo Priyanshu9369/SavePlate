@@ -171,6 +171,64 @@ struct ReceiverClaimRecord: Identifiable, Codable, Equatable {
     var claimedAt: Date
 }
 
+/// Food pantry / stock level for receiver home announcement.
+enum ReceiverFoodStockLevel: String, CaseIterable, Codable, Identifiable, Hashable {
+    case full
+    case medium
+    case low
+    case empty
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .full: "Full"
+        case .medium: "Medium"
+        case .low: "Low"
+        case .empty: "Empty"
+        }
+    }
+
+    /// Maps to UI: green / yellow / orange / red
+    var statusToken: String {
+        switch self {
+        case .full: "green"
+        case .medium: "yellow"
+        case .low: "orange"
+        case .empty: "red"
+        }
+    }
+}
+
+struct ReceiverRider: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var phone: String
+}
+
+/// Mock distribution proof (photo/video placeholder for demo persistence).
+struct ReceiverDistributionProof: Identifiable, Codable, Equatable {
+    var id: UUID
+    /// Linked donation for donor transparency; optional if general proof.
+    var donationId: UUID?
+    var caption: String
+    /// `"photo"` or `"video"`
+    var mediaKind: String
+    /// Mock attachment label shown in UI.
+    var attachmentStub: String
+    var createdAt: Date
+}
+
+/// Community feedback tied to a distribution (optional donation link).
+struct ReceiverCommunityReview: Identifiable, Codable, Equatable {
+    var id: UUID
+    var donationId: UUID?
+    var authorName: String
+    var reviewText: String
+    var mediaNote: String
+    var createdAt: Date
+}
+
 struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
     var id: UUID
     var donorName: String
@@ -178,8 +236,10 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
     var location: String
     var createdAt: Date
     var isRead: Bool
-    /// `"donor"` for donor posts, `"system"` for automated messages (older saved data defaults to donor).
+    /// `"donor"` or `"system"` (legacy display grouping).
     var category: String
+    /// Smart routing: `newFood`, `requestApproved`, `dailyLimit`, `systemDaily`.
+    var notifKind: String
 
     init(
         id: UUID = UUID(),
@@ -188,7 +248,8 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
         location: String,
         createdAt: Date,
         isRead: Bool,
-        category: String = "donor"
+        category: String = "donor",
+        notifKind: String = "newFood"
     ) {
         self.id = id
         self.donorName = donorName
@@ -197,10 +258,11 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
         self.createdAt = createdAt
         self.isRead = isRead
         self.category = category
+        self.notifKind = notifKind
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, donorName, foodDetails, location, createdAt, isRead, category
+        case id, donorName, foodDetails, location, createdAt, isRead, category, notifKind
     }
 
     init(from decoder: Decoder) throws {
@@ -212,6 +274,15 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         isRead = try c.decode(Bool.self, forKey: .isRead)
         category = try c.decodeIfPresent(String.self, forKey: .category) ?? "donor"
+        if let k = try c.decodeIfPresent(String.self, forKey: .notifKind) {
+            notifKind = k
+        } else {
+            if category == "system" {
+                notifKind = "systemDaily"
+            } else {
+                notifKind = "newFood"
+            }
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -223,6 +294,7 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(isRead, forKey: .isRead)
         try c.encode(category, forKey: .category)
+        try c.encode(notifKind, forKey: .notifKind)
     }
 }
 

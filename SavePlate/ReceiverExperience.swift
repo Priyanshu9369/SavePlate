@@ -121,8 +121,8 @@ struct ReceiverHomeTab: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: "bell.badge.fill")
                                 .foregroundStyle(HearthTokens.primary)
-                            if store.receiverUnreadNotificationCount > 0 {
-                                Text("\(min(store.receiverUnreadNotificationCount, 9))")
+                            if store.receiverUnreadSmartNotificationCount > 0 {
+                                Text("\(min(store.receiverUnreadSmartNotificationCount, 9))")
                                     .font(.caption2.weight(.bold))
                                     .foregroundStyle(.white)
                                     .padding(4)
@@ -313,9 +313,49 @@ struct ReceiverHomeTab: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("The Hearth Feed")
                 .font(HearthFont.display(18, weight: .bold))
+            stockAnnouncementRow
             feedRow(icon: "megaphone.fill", tint: HearthColor.peach, tag: "ANNOUNCEMENT", title: "New Cold Storage Available", subtitle: "Industrial refrigerators now online for perishable rescues.", time: "3 HOURS AGO")
             feedRow(icon: "hands.sparkles.fill", tint: HearthTokens.mintTint, tag: "COMMUNITY", title: "Volunteer Drive Success", subtitle: "Twelve new drivers joined weekend routes.", time: "5 HOURS AGO")
         }
+    }
+
+    private var stockAnnouncementRow: some View {
+        let level = store.receiverFoodStockLevel
+        let subtitle: String = {
+            switch level {
+            case .full: return "Pantry is well stocked — great position for the week."
+            case .medium: return "Comfortable inventory — monitor high-traffic distribution days."
+            case .low: return "Running low — plan pickups or prioritize portions."
+            case .empty: return "Stock is empty — prioritize incoming rescues and support."
+            }
+        }()
+        return HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(stockIndicatorColor(level.statusToken).opacity(0.25))
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .fill(stockIndicatorColor(level.statusToken))
+                    .frame(width: 12, height: 12)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("STOCK STATUS")
+                    .font(HearthFont.labelCaps(9))
+                    .foregroundStyle(HearthTokens.secondary)
+                Text("Food stock: \(level.title)")
+                    .font(HearthFont.body(16, weight: .bold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(HearthTokens.onSurfaceVariant)
+                Text("Updated from Control Panel")
+                    .font(HearthFont.labelCaps(9))
+                    .foregroundStyle(HearthTokens.onSurfaceVariant.opacity(0.8))
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .hearthAmbientShadow()
     }
 
     private func feedRow(icon: String, tint: Color, tag: String, title: String, subtitle: String, time: String) -> some View {
@@ -370,14 +410,20 @@ struct ReceiverDashboardTab: View {
 
 // MARK: - Feed
 
+private enum ReceiverFeedRoute: Hashable {
+    case controlPanel
+    case notifications
+}
+
 struct ReceiverFeedTab: View {
     @Environment(DonationStore.self) private var store
     @State private var filter = "All Food"
+    @State private var path = NavigationPath()
 
     private let filters = ["All Food", "Human", "Pet"]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     liveImpactMini
@@ -395,16 +441,46 @@ struct ReceiverFeedTab: View {
             .navigationDestination(for: Donation.self) { d in
                 ReceiverDonationDetailView(donation: d)
             }
+            .navigationDestination(for: ReceiverFeedRoute.self) { route in
+                switch route {
+                case .controlPanel:
+                    ControlPanelView()
+                case .notifications:
+                    ReceiverNotificationsView()
+                }
+            }
             .navigationTitle("Feed")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Label(HearthBrand.name, systemImage: "mappin.circle.fill")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(HearthTokens.onSurface)
+                    Button {
+                        path.append(ReceiverFeedRoute.controlPanel)
+                    } label: {
+                        Image(systemName: "key.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(HearthTokens.primary)
+                            .frame(width: 40, height: 40)
+                            .background(HearthTokens.surfaceContainerLow, in: Circle())
+                    }
+                    .accessibilityLabel("Control panel")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Image(systemName: "bell.fill")
-                        .foregroundStyle(HearthTokens.primary)
+                    Button {
+                        path.append(ReceiverFeedRoute.notifications)
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell.fill")
+                                .foregroundStyle(HearthTokens.primary)
+                            if store.receiverUnreadSmartNotificationCount > 0 {
+                                Text("\(min(store.receiverUnreadSmartNotificationCount, 9))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(4)
+                                    .background(Color.red, in: Circle())
+                                    .offset(x: 8, y: -8)
+                            }
+                        }
+                    }
+                    .accessibilityLabel("Notifications")
                 }
             }
             .hearthNavBar()

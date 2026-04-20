@@ -28,6 +28,11 @@ final class DonationStore {
     private let receiverTotalPointsKey = "hearth.receiver.totalPoints"
     private let receiverPointsPerMealKey = "hearth.receiver.pointsPerMeal"
     private let receiverLifetimeMealsKey = "hearth.receiver.lifetimeMeals"
+    private let receiverRidersKey = "hearth.receiver.riders"
+    private let receiverStockLevelKey = "hearth.receiver.stockLevel"
+    private let receiverProofsKey = "hearth.receiver.proofs"
+    private let receiverReviewsKey = "hearth.receiver.reviews"
+    private let lastDailyLimitNotifDayKey = "hearth.receiver.lastDailyLimitNotifDay"
 
     var donations: [Donation] = []
     var pledgedUrgentRequestIDs: Set<UUID> = []
@@ -91,6 +96,49 @@ final class DonationStore {
 
     var receiverUnreadNotificationCount: Int {
         receiverNotifications.filter { !$0.isRead }.count
+    }
+
+    /// Kinds shown in the notification center (avoids noisy legacy rows).
+    static let receiverUsefulNotificationKinds: Set<String> = ["newFood", "requestApproved", "dailyLimit", "systemDaily"]
+
+    var receiverUnreadSmartNotificationCount: Int {
+        receiverNotifications.filter { !$0.isRead && Self.receiverUsefulNotificationKinds.contains($0.notifKind) }.count
+    }
+
+    var receiverNotificationsFiltered: [ReceiverNotificationItem] {
+        receiverNotifications.filter { Self.receiverUsefulNotificationKinds.contains($0.notifKind) }
+    }
+
+    // MARK: - Receiver control panel (mock, persisted)
+
+    var receiverRiders: [ReceiverRider] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverRiders) {
+                UserDefaults.standard.set(data, forKey: receiverRidersKey)
+            }
+        }
+    }
+
+    var receiverFoodStockLevel: ReceiverFoodStockLevel = .medium {
+        didSet {
+            UserDefaults.standard.set(receiverFoodStockLevel.rawValue, forKey: receiverStockLevelKey)
+        }
+    }
+
+    var receiverDistributionProofs: [ReceiverDistributionProof] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverDistributionProofs) {
+                UserDefaults.standard.set(data, forKey: receiverProofsKey)
+            }
+        }
+    }
+
+    var receiverCommunityReviews: [ReceiverCommunityReview] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverCommunityReviews) {
+                UserDefaults.standard.set(data, forKey: receiverReviewsKey)
+            }
+        }
     }
 
     // MARK: - Receiver daily limit & points (separate from auth)
@@ -204,6 +252,22 @@ final class DonationStore {
         } else {
             seedReceiverNotifications()
         }
+        if let data = UserDefaults.standard.data(forKey: receiverRidersKey),
+           let decoded = try? JSONDecoder().decode([ReceiverRider].self, from: data) {
+            receiverRiders = decoded
+        }
+        if let raw = UserDefaults.standard.string(forKey: receiverStockLevelKey),
+           let level = ReceiverFoodStockLevel(rawValue: raw) {
+            receiverFoodStockLevel = level
+        }
+        if let data = UserDefaults.standard.data(forKey: receiverProofsKey),
+           let decoded = try? JSONDecoder().decode([ReceiverDistributionProof].self, from: data) {
+            receiverDistributionProofs = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: receiverReviewsKey),
+           let decoded = try? JSONDecoder().decode([ReceiverCommunityReview].self, from: data) {
+            receiverCommunityReviews = decoded
+        }
         let dInd = UserDefaults.standard.object(forKey: receiverDailyLimitIndividualKey) as? Int
         receiverDailyMealLimitIndividual = dInd ?? 20
         let dNgo = UserDefaults.standard.object(forKey: receiverDailyLimitNGOKey) as? Int
@@ -309,26 +373,22 @@ final class DonationStore {
             ReceiverNotificationItem(
                 id: UUID(),
                 donorName: "Green Grove Cafe",
-                foodDetails: "15 vegetarian meal boxes",
+                foodDetails: "New food available — 15 vegetarian meal boxes",
                 location: "Koramangala 5th Block",
                 createdAt: now.addingTimeInterval(-2 * 60),
-                isRead: false
+                isRead: false,
+                category: "donor",
+                notifKind: "newFood"
             ),
             ReceiverNotificationItem(
                 id: UUID(),
-                donorName: "Sunrise Community Kitchen",
-                foodDetails: "8 kg rice and curry",
-                location: "Indiranagar 12th Main",
-                createdAt: now.addingTimeInterval(-18 * 60),
-                isRead: false
-            ),
-            ReceiverNotificationItem(
-                id: UUID(),
-                donorName: "Hearth Bistro",
-                foodDetails: "22 packaged sandwich packs",
-                location: "HSR Layout",
-                createdAt: now.addingTimeInterval(-2 * 3600),
-                isRead: true
+                donorName: "Program update",
+                foodDetails: "Your pickup request was approved.",
+                location: "You can schedule pickup in the Feed.",
+                createdAt: now.addingTimeInterval(-45 * 60),
+                isRead: false,
+                category: "donor",
+                notifKind: "requestApproved"
             ),
         ]
     }
@@ -343,7 +403,8 @@ final class DonationStore {
                 location: $0.location,
                 createdAt: $0.createdAt,
                 isRead: true,
-                category: $0.category
+                category: $0.category,
+                notifKind: $0.notifKind
             )
         }
     }
@@ -390,6 +451,7 @@ final class DonationStore {
         let cap = receiverDailyLimit(isNGO: isNGO)
         if receiverMealsReceivedToday + meals > cap {
             upsertReceiverDailyProgressNotification(isNGO: isNGO)
+            postDailyLimitReachedNotificationIfNeeded()
             return "Daily limit reached. Please try again tomorrow."
         }
         receiverMealsReceivedToday += meals
@@ -431,13 +493,101 @@ final class DonationStore {
             location: footer,
             createdAt: Date(),
             isRead: false,
-            category: "system"
+            category: "system",
+            notifKind: "systemDaily"
         )
         if let idx = receiverNotifications.firstIndex(where: { $0.id == Self.receiverDailyProgressNotificationID }) {
             receiverNotifications[idx] = item
         } else {
             receiverNotifications.insert(item, at: 0)
         }
+    }
+
+    /// One “daily limit reached” alert per calendar day (reduces spam).
+    func postDailyLimitReachedNotificationIfNeeded() {
+        let day = Self.localCalendarDayId(for: Date())
+        if UserDefaults.standard.string(forKey: lastDailyLimitNotifDayKey) == day { return }
+        UserDefaults.standard.set(day, forKey: lastDailyLimitNotifDayKey)
+        let item = ReceiverNotificationItem(
+            donorName: "Daily limit",
+            foodDetails: "You’ve used all meals allowed for today.",
+            location: "Daily limit reached. Please try again tomorrow.",
+            createdAt: Date(),
+            isRead: false,
+            category: "system",
+            notifKind: "dailyLimit"
+        )
+        receiverNotifications.insert(item, at: 0)
+    }
+
+    func postRequestApprovedNotification(summary: String = "Your pickup request was approved.") {
+        let item = ReceiverNotificationItem(
+            donorName: "Pickup status",
+            foodDetails: summary,
+            location: "Check the Feed for timing and location.",
+            createdAt: Date(),
+            isRead: false,
+            category: "donor",
+            notifKind: "requestApproved"
+        )
+        receiverNotifications.insert(item, at: 0)
+    }
+
+    func receiverProofs(forDonationId id: UUID) -> [ReceiverDistributionProof] {
+        receiverDistributionProofs.filter { $0.donationId == id }
+    }
+
+    func receiverReviews(forDonationId id: UUID) -> [ReceiverCommunityReview] {
+        receiverCommunityReviews.filter { $0.donationId == id }
+    }
+
+    func upsertReceiverRider(_ rider: ReceiverRider) {
+        if let i = receiverRiders.firstIndex(where: { $0.id == rider.id }) {
+            receiverRiders[i] = rider
+        } else {
+            receiverRiders.append(rider)
+        }
+    }
+
+    func deleteReceiverRider(id: UUID) {
+        receiverRiders.removeAll { $0.id == id }
+    }
+
+    func addReceiverDistributionProof(donationId: UUID?, caption: String, mediaKind: String, attachmentStub: String) {
+        let proof = ReceiverDistributionProof(
+            id: UUID(),
+            donationId: donationId,
+            caption: caption,
+            mediaKind: mediaKind,
+            attachmentStub: attachmentStub,
+            createdAt: Date()
+        )
+        receiverDistributionProofs.insert(proof, at: 0)
+    }
+
+    func addReceiverCommunityReview(donationId: UUID?, authorName: String, reviewText: String, mediaNote: String) {
+        let r = ReceiverCommunityReview(
+            id: UUID(),
+            donationId: donationId,
+            authorName: authorName,
+            reviewText: reviewText,
+            mediaNote: mediaNote,
+            createdAt: Date()
+        )
+        receiverCommunityReviews.insert(r, at: 0)
+    }
+
+    private func appendNewFoodAvailableNotification(for donation: Donation) {
+        let item = ReceiverNotificationItem(
+            donorName: kitchenDisplayName,
+            foodDetails: "New food available — \(donation.foodName)",
+            location: donation.pickupLocation,
+            createdAt: Date(),
+            isRead: false,
+            category: "donor",
+            notifKind: "newFood"
+        )
+        receiverNotifications.insert(item, at: 0)
     }
 
     // MARK: - Persistence
@@ -475,6 +625,9 @@ final class DonationStore {
     func add(_ donation: Donation) {
         donations.insert(donation, at: 0)
         persist()
+        if userRole == .donor {
+            appendNewFoodAvailableNotification(for: donation)
+        }
     }
 
     func update(_ donation: Donation) {

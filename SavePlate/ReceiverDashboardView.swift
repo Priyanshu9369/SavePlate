@@ -96,8 +96,8 @@ struct ReceiverDashboardView: View {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell.fill")
                             .foregroundStyle(HearthTokens.primary)
-                        if store.receiverUnreadNotificationCount > 0 {
-                            Text("\(min(store.receiverUnreadNotificationCount, 9))")
+                        if store.receiverUnreadSmartNotificationCount > 0 {
+                            Text("\(min(store.receiverUnreadSmartNotificationCount, 9))")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.white)
                                 .padding(4)
