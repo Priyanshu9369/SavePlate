@@ -21,6 +21,13 @@ final class DonationStore {
     private let receiverBioKey = "hearth.receiver.bio"
     private let receiverClaimsKey = "hearth.receiver.claimHistory"
     private let receiverNotificationsKey = "hearth.receiver.notifications"
+    private let receiverDailyLimitIndividualKey = "hearth.receiver.dailyLimit.individual"
+    private let receiverDailyLimitNGOKey = "hearth.receiver.dailyLimit.ngo"
+    private let receiverMealsTodayKey = "hearth.receiver.mealsToday"
+    private let receiverLastResetDayKey = "hearth.receiver.lastResetDay"
+    private let receiverTotalPointsKey = "hearth.receiver.totalPoints"
+    private let receiverPointsPerMealKey = "hearth.receiver.pointsPerMeal"
+    private let receiverLifetimeMealsKey = "hearth.receiver.lifetimeMeals"
 
     var donations: [Donation] = []
     var pledgedUrgentRequestIDs: Set<UUID> = []
@@ -84,6 +91,43 @@ final class DonationStore {
 
     var receiverUnreadNotificationCount: Int {
         receiverNotifications.filter { !$0.isRead }.count
+    }
+
+    // MARK: - Receiver daily limit & points (separate from auth)
+
+    /// Max meals an **individual** receiver may log per calendar day (local time).
+    var receiverDailyMealLimitIndividual: Int = 20 {
+        didSet { UserDefaults.standard.set(receiverDailyMealLimitIndividual, forKey: receiverDailyLimitIndividualKey) }
+    }
+
+    /// Max meals an **NGO** receiver may log per calendar day (local time).
+    var receiverDailyMealLimitNGO: Int = 50 {
+        didSet { UserDefaults.standard.set(receiverDailyMealLimitNGO, forKey: receiverDailyLimitNGOKey) }
+    }
+
+    /// Meals logged today toward the daily cap (resets at local midnight).
+    var receiverMealsReceivedToday: Int = 0 {
+        didSet { UserDefaults.standard.set(receiverMealsReceivedToday, forKey: receiverMealsTodayKey) }
+    }
+
+    /// `yyyy-MM-dd` in the current calendar, last day `receiverMealsReceivedToday` was reset for.
+    private(set) var receiverEconomyLastResetDayId: String = "" {
+        didSet { UserDefaults.standard.set(receiverEconomyLastResetDayId, forKey: receiverLastResetDayKey) }
+    }
+
+    /// Lifetime points — redeemable later for rewards (mock).
+    var receiverTotalPoints: Int = 0 {
+        didSet { UserDefaults.standard.set(receiverTotalPoints, forKey: receiverTotalPointsKey) }
+    }
+
+    /// Points earned per meal claimed (configurable).
+    var receiverPointsPerMeal: Int = 10 {
+        didSet { UserDefaults.standard.set(receiverPointsPerMeal, forKey: receiverPointsPerMealKey) }
+    }
+
+    /// All-time meals received (mock aggregate).
+    var receiverLifetimeMealsReceived: Int = 0 {
+        didSet { UserDefaults.standard.set(receiverLifetimeMealsReceived, forKey: receiverLifetimeMealsKey) }
     }
 
     let mealGoal: Int = 500
@@ -160,6 +204,20 @@ final class DonationStore {
         } else {
             seedReceiverNotifications()
         }
+        let dInd = UserDefaults.standard.object(forKey: receiverDailyLimitIndividualKey) as? Int
+        receiverDailyMealLimitIndividual = dInd ?? 20
+        let dNgo = UserDefaults.standard.object(forKey: receiverDailyLimitNGOKey) as? Int
+        receiverDailyMealLimitNGO = dNgo ?? 50
+        receiverMealsReceivedToday = UserDefaults.standard.integer(forKey: receiverMealsTodayKey)
+        receiverEconomyLastResetDayId = UserDefaults.standard.string(forKey: receiverLastResetDayKey) ?? ""
+        receiverTotalPoints = UserDefaults.standard.integer(forKey: receiverTotalPointsKey)
+        let ppm = UserDefaults.standard.object(forKey: receiverPointsPerMealKey) as? Int
+        receiverPointsPerMeal = ppm ?? 10
+        receiverLifetimeMealsReceived = UserDefaults.standard.integer(forKey: receiverLifetimeMealsKey)
+        if receiverEconomyLastResetDayId.isEmpty {
+            receiverEconomyLastResetDayId = Self.localCalendarDayId(for: Date())
+        }
+        resetReceiverDailyProgressIfNeeded()
         let hadStoredDonations = UserDefaults.standard.object(forKey: donationsKey) != nil
         load()
         loadPledged()
@@ -284,8 +342,101 @@ final class DonationStore {
                 foodDetails: $0.foodDetails,
                 location: $0.location,
                 createdAt: $0.createdAt,
-                isRead: true
+                isRead: true,
+                category: $0.category
             )
+        }
+    }
+
+    // MARK: - Receiver economy
+
+    static let receiverDailyProgressNotificationID = UUID(uuidString: "C0FFEE00-0000-4000-8000-000000000001")!
+
+    static func localCalendarDayId(for date: Date) -> String {
+        let cal = Calendar.current
+        let y = cal.component(.year, from: date)
+        let m = cal.component(.month, from: date)
+        let d = cal.component(.day, from: date)
+        return String(format: "%04d-%02d-%02d", y, m, d)
+    }
+
+    func receiverDailyLimit(isNGO: Bool) -> Int {
+        isNGO ? receiverDailyMealLimitNGO : receiverDailyMealLimitIndividual
+    }
+
+    func resetReceiverDailyProgressIfNeeded() {
+        let today = Self.localCalendarDayId(for: Date())
+        if receiverEconomyLastResetDayId != today {
+            receiverMealsReceivedToday = 0
+            receiverEconomyLastResetDayId = today
+        }
+    }
+
+    func remainingDailyMeals(isNGO: Bool) -> Int {
+        resetReceiverDailyProgressIfNeeded()
+        let cap = receiverDailyLimit(isNGO: isNGO)
+        return max(0, cap - receiverMealsReceivedToday)
+    }
+
+    func isReceiverDailyLimitReached(isNGO: Bool) -> Bool {
+        remainingDailyMeals(isNGO: isNGO) == 0 && receiverDailyLimit(isNGO: isNGO) > 0
+    }
+
+    /// Records meals toward today's cap; awards points. Returns an error message if over limit.
+    @discardableResult
+    func recordReceiverMealClaim(meals: Int, foodTitle: String, isNGO: Bool) -> String? {
+        guard meals > 0 else { return nil }
+        resetReceiverDailyProgressIfNeeded()
+        let cap = receiverDailyLimit(isNGO: isNGO)
+        if receiverMealsReceivedToday + meals > cap {
+            upsertReceiverDailyProgressNotification(isNGO: isNGO)
+            return "Daily limit reached. Please try again tomorrow."
+        }
+        receiverMealsReceivedToday += meals
+        let earned = meals * receiverPointsPerMeal
+        receiverTotalPoints += earned
+        receiverLifetimeMealsReceived += meals
+
+        let qtyLabel = "\(meals) meals"
+        let record = ReceiverClaimRecord(
+            id: UUID(),
+            title: foodTitle,
+            quantityText: qtyLabel,
+            pointsUsed: earned,
+            claimedAt: Date()
+        )
+        receiverClaimHistory.insert(record, at: 0)
+
+        upsertReceiverDailyProgressNotification(isNGO: isNGO)
+        return nil
+    }
+
+    /// Keeps a single “daily allowance” row in the notification list (also shown as a summary card in UI).
+    func upsertReceiverDailyProgressNotification(isNGO: Bool) {
+        resetReceiverDailyProgressIfNeeded()
+        let cap = receiverDailyLimit(isNGO: isNGO)
+        let used = receiverMealsReceivedToday
+        let remaining = max(0, cap - used)
+        let footer: String
+        if used >= cap {
+            footer = "Daily limit reached. Please try again tomorrow."
+        } else {
+            footer = "Points are saved for future rewards and benefits."
+        }
+        let details = "Daily limit: \(cap) meals · Used \(used) of \(cap) today · Remaining: \(remaining). Total points: \(receiverTotalPoints)."
+        let item = ReceiverNotificationItem(
+            id: Self.receiverDailyProgressNotificationID,
+            donorName: "Daily allowance",
+            foodDetails: details,
+            location: footer,
+            createdAt: Date(),
+            isRead: false,
+            category: "system"
+        )
+        if let idx = receiverNotifications.firstIndex(where: { $0.id == Self.receiverDailyProgressNotificationID }) {
+            receiverNotifications[idx] = item
+        } else {
+            receiverNotifications.insert(item, at: 0)
         }
     }
 

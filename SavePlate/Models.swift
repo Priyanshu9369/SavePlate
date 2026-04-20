@@ -178,6 +178,52 @@ struct ReceiverNotificationItem: Identifiable, Codable, Equatable {
     var location: String
     var createdAt: Date
     var isRead: Bool
+    /// `"donor"` for donor posts, `"system"` for automated messages (older saved data defaults to donor).
+    var category: String
+
+    init(
+        id: UUID = UUID(),
+        donorName: String,
+        foodDetails: String,
+        location: String,
+        createdAt: Date,
+        isRead: Bool,
+        category: String = "donor"
+    ) {
+        self.id = id
+        self.donorName = donorName
+        self.foodDetails = foodDetails
+        self.location = location
+        self.createdAt = createdAt
+        self.isRead = isRead
+        self.category = category
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, donorName, foodDetails, location, createdAt, isRead, category
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        donorName = try c.decode(String.self, forKey: .donorName)
+        foodDetails = try c.decode(String.self, forKey: .foodDetails)
+        location = try c.decode(String.self, forKey: .location)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        isRead = try c.decode(Bool.self, forKey: .isRead)
+        category = try c.decodeIfPresent(String.self, forKey: .category) ?? "donor"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(donorName, forKey: .donorName)
+        try c.encode(foodDetails, forKey: .foodDetails)
+        try c.encode(location, forKey: .location)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(isRead, forKey: .isRead)
+        try c.encode(category, forKey: .category)
+    }
 }
 
 enum DonationTimeFilter: String, CaseIterable, Identifiable {

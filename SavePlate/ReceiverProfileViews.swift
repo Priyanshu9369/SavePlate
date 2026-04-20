@@ -282,6 +282,16 @@ struct ReceiverHistoryView: View {
 
 struct ReceiverNotificationsView: View {
     @Environment(DonationStore.self) private var store
+    @Environment(AppSession.self) private var session
+
+    private var sortedNotifications: [ReceiverNotificationItem] {
+        store.receiverNotifications.sorted { a, b in
+            let aSys = a.category == "system" || a.id == DonationStore.receiverDailyProgressNotificationID
+            let bSys = b.category == "system" || b.id == DonationStore.receiverDailyProgressNotificationID
+            if aSys != bSys { return aSys && !bSys }
+            return a.createdAt > b.createdAt
+        }
+    }
 
     var body: some View {
         Group {
@@ -294,7 +304,7 @@ struct ReceiverNotificationsView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 12) {
-                        ForEach(store.receiverNotifications.sorted(by: { $0.createdAt > $1.createdAt })) { item in
+                        ForEach(sortedNotifications) { item in
                             notificationCard(item)
                         }
                     }
@@ -307,16 +317,19 @@ struct ReceiverNotificationsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .hearthNavBar()
         .onAppear {
+            store.resetReceiverDailyProgressIfNeeded()
+            store.upsertReceiverDailyProgressNotification(isNGO: session.isNGOReceiver)
             store.markAllReceiverNotificationsRead()
         }
     }
 
     private func notificationCard(_ item: ReceiverNotificationItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let isSystem = item.category == "system" || item.id == DonationStore.receiverDailyProgressNotificationID
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label(item.donorName, systemImage: "bell.badge.fill")
+                Label(item.donorName, systemImage: isSystem ? "calendar.badge.clock" : "bell.badge.fill")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(HearthTokens.primary)
+                    .foregroundStyle(isSystem ? HearthTokens.secondary : HearthTokens.primary)
                 Spacer()
                 Text(item.createdAt, style: .relative)
                     .font(.caption)
@@ -324,9 +337,11 @@ struct ReceiverNotificationsView: View {
             }
             Text(item.foodDetails)
                 .font(.body.weight(.semibold))
-            Label(item.location, systemImage: "mappin.and.ellipse")
-                .font(.caption)
-                .foregroundStyle(HearthTokens.onSurfaceVariant)
+            if !item.location.isEmpty {
+                Label(item.location, systemImage: isSystem ? "info.circle" : "mappin.and.ellipse")
+                    .font(.caption)
+                    .foregroundStyle(HearthTokens.onSurfaceVariant)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)

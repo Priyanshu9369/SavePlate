@@ -7,10 +7,12 @@ import SwiftUI
 
 struct ReceiverDonationDetailView: View {
     @Environment(DonationStore.self) private var store
+    @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
 
     let donation: Donation
     @State private var isClaimed = false
+    @State private var claimErrorMessage: String?
 
     private var live: Donation? { store.donations.first { $0.id == donation.id } }
 
@@ -65,6 +67,16 @@ struct ReceiverDonationDetailView: View {
         }
         .safeAreaInset(edge: .bottom) {
             claimBar
+        }
+        .alert("Cannot claim", isPresented: Binding(
+            get: { claimErrorMessage != nil },
+            set: { if !$0 { claimErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { claimErrorMessage = nil }
+        } message: {
+            if let claimErrorMessage {
+                Text(claimErrorMessage)
+            }
         }
     }
 
@@ -236,6 +248,12 @@ struct ReceiverDonationDetailView: View {
 
     private var claimBar: some View {
         Button {
+            guard let d = live else { return }
+            let meals = max(1, d.estimatedMealsSaved())
+            if let err = store.recordReceiverMealClaim(meals: meals, foodTitle: d.foodName, isNGO: session.isNGOReceiver) {
+                claimErrorMessage = err
+                return
+            }
             isClaimed = true
         } label: {
             Label(isClaimed ? "Claim Submitted" : "Claim This Donation", systemImage: "plus.circle.fill")
