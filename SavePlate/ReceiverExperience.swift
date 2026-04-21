@@ -15,29 +15,48 @@ private enum ReceiverHomeRoute: Hashable {
 struct ReceiverRootTabView: View {
     @Environment(DonationStore.self) private var store
     @Environment(AppSession.self) private var session
+    @Environment(ReceiverAuthManager.self) private var receiverAuth
 
     @State private var tab = 0
+    @State private var realtimeVM: RealtimeDonationViewModel?
 
     var body: some View {
-        TabView(selection: $tab) {
-            ReceiverHomeTab()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
+        Group {
+            if let realtimeVM {
+                TabView(selection: $tab) {
+                    ReceiverHomeTab()
+                        .tabItem { Label("Home", systemImage: "house.fill") }
+                        .tag(0)
 
-            ReceiverDashboardTab()
-                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
-                .tag(1)
+                    ReceiverDashboardTab(realtimeVM: realtimeVM)
+                        .tabItem { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
+                        .tag(1)
 
-            ReceiverFeedTab()
-                .tabItem { Label("Feed", systemImage: "rectangle.stack.fill") }
-                .tag(2)
+                    ReceiverFeedTab(realtimeVM: realtimeVM)
+                        .tabItem { Label("Feed", systemImage: "rectangle.stack.fill") }
+                        .tag(2)
 
-            ReceiverProfileTab()
-                .tabItem { Label("Profile", systemImage: "person.fill") }
-                .tag(3)
+                    ReceiverProfileTab()
+                        .tabItem { Label("Profile", systemImage: "person.fill") }
+                        .tag(3)
+                }
+            } else {
+                ProgressView("Preparing real-time session...")
+            }
         }
         .tint(HearthTokens.primary)
         .hearthTabBar()
+        .onAppear {
+            guard realtimeVM == nil else { return }
+            let role: AppUserRole = session.isNGOReceiver ? .ngo : .individual
+            let identifier = receiverAuth.currentIdentifier ?? store.receiverProfileName.replacingOccurrences(of: " ", with: "_")
+            let user = AppUser(
+                id: "receiver_\(identifier)",
+                name: receiverAuth.currentDisplayName ?? store.receiverProfileName,
+                role: role
+            )
+            realtimeVM = RealtimeDonationViewModel(currentUser: user)
+        }
     }
 }
 
@@ -442,6 +461,7 @@ struct ReceiverHomeTab: View {
 // MARK: - Dashboard (institutional)
 
 struct ReceiverDashboardTab: View {
+    let realtimeVM: RealtimeDonationViewModel
     @State private var path = NavigationPath()
     @State private var showSidebar = false
 
@@ -451,11 +471,11 @@ struct ReceiverDashboardTab: View {
                 .navigationDestination(for: ReceiverDashboardRoute.self) { route in
                     switch route {
                     case .notifications:
-                        ReceiverNotificationsView()
+                        RealtimeNotificationsView(vm: realtimeVM)
                     case .profile:
                         ReceiverProfileView()
                     case .history:
-                        ReceiverHistoryView()
+                        RealtimeHistoryView(vm: realtimeVM)
                     }
                 }
         }
@@ -471,6 +491,7 @@ private enum ReceiverFeedRoute: Hashable {
 
 struct ReceiverFeedTab: View {
     @Environment(DonationStore.self) private var store
+    let realtimeVM: RealtimeDonationViewModel
     @State private var filter = "All Food"
     @State private var path = NavigationPath()
 
@@ -482,25 +503,25 @@ struct ReceiverFeedTab: View {
                 VStack(alignment: .leading, spacing: 18) {
                     liveImpactMini
                     filterChips
-                    ForEach(store.donations.filter(\.isActive).prefix(6)) { d in
-                        NavigationLink(value: d) {
-                            feedDonationCard(d)
+                    if realtimeVM.availableFeed.isEmpty {
+                        Text("No available donations right now.")
+                            .font(.subheadline)
+                            .foregroundStyle(HearthTokens.onSurfaceVariant)
+                    } else {
+                        ForEach(realtimeVM.availableFeed.prefix(12)) { d in
+                            realtimeFeedCard(d)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(20)
             }
             .hearthScreenBackground()
-            .navigationDestination(for: Donation.self) { d in
-                ReceiverDonationDetailView(donation: d)
-            }
             .navigationDestination(for: ReceiverFeedRoute.self) { route in
                 switch route {
                 case .controlPanel:
                     ControlPanelView()
                 case .notifications:
-                    ReceiverNotificationsView()
+                    RealtimeNotificationsView(vm: realtimeVM)
                 }
             }
             .navigationTitle("Feed")
@@ -538,6 +559,7 @@ struct ReceiverFeedTab: View {
                 }
             }
             .hearthNavBar()
+            .onAppear { realtimeVM.start() }
         }
     }
 
@@ -654,6 +676,41 @@ struct ReceiverFeedTab: View {
             .padding(14)
         }
         .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .hearthAmbientShadow()
+    }
+
+    private func realtimeFeedCard(_ d: RealtimeDonation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(d.foodDetails)
+                    .font(HearthFont.body(17, weight: .bold))
+                Spacer()
+                Text(d.status.rawValue.capitalized)
+                    .font(HearthFont.labelCaps(9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(HearthTokens.surfaceContainerLow, in: Capsule())
+            }
+            Text("\(d.quantity) · by \(d.donorName)")
+                .font(.caption)
+                .foregroundStyle(HearthTokens.onSurfaceVariant)
+            Text("Location: \(d.latitude), \(d.longitude)")
+                .font(.caption2)
+                .foregroundStyle(HearthTokens.onSurfaceVariant)
+            Button {
+                realtimeVM.acceptDonation(d)
+            } label: {
+                Text("Accept Donation")
+                    .font(HearthFont.body(15, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(HearthTokens.primary, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            .disabled(d.status != .available || realtimeVM.currentUser.role == .donor)
+        }
+        .padding(16)
+        .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .hearthAmbientShadow()
     }
 }
