@@ -8,6 +8,8 @@ import SwiftUI
 private enum ReceiverHomeRoute: Hashable {
     case profile
     case notifications
+    case addVolunteer
+    case volunteers
 }
 
 struct ReceiverRootTabView: View {
@@ -46,7 +48,6 @@ struct ReceiverHomeTab: View {
     @Environment(AppSession.self) private var session
 
     @State private var showMap = false
-    @State private var showSignIn = false
     @State private var routePath = NavigationPath()
 
     private var available: [Donation] {
@@ -63,6 +64,7 @@ struct ReceiverHomeTab: View {
                         if session.isNGOReceiver {
                             summaryPair
                         }
+                        activeVolunteersSection
                         readyForPickupSection
                         hearthFeedSection
                     }
@@ -72,7 +74,7 @@ struct ReceiverHomeTab: View {
                 .hearthScreenBackground()
 
                 Button {
-                    showSignIn = true
+                    routePath.append(ReceiverHomeRoute.addVolunteer)
                 } label: {
                     Image(systemName: "plus")
                         .font(.title2.weight(.bold))
@@ -93,6 +95,10 @@ struct ReceiverHomeTab: View {
                     ReceiverProfileView()
                 case .notifications:
                     ReceiverNotificationsView()
+                case .addVolunteer:
+                    AddVolunteerView()
+                case .volunteers:
+                    VolunteerListView()
                 }
             }
             .navigationTitle("")
@@ -135,10 +141,6 @@ struct ReceiverHomeTab: View {
             }
             .sheet(isPresented: $showMap) {
                 DonationsMapView().environment(store)
-            }
-            .sheet(isPresented: $showSignIn) {
-                AuthSignInView()
-                    .environment(store)
             }
             .hearthNavBar()
         }
@@ -205,8 +207,60 @@ struct ReceiverHomeTab: View {
     private var summaryPair: some View {
         HStack(spacing: 12) {
             smallMetricCard(icon: "mappin.circle.fill", tint: HearthTokens.mintTint, value: "12.4 km", title: "to pickups")
-            smallMetricCard(icon: "person.3.fill", tint: HearthColor.peach, value: "24", title: "active volunteers")
+            smallMetricCard(icon: "person.3.fill", tint: HearthColor.peach, value: "\(store.activeReceiverVolunteersCount)", title: "active volunteers")
         }
+    }
+
+    private var activeVolunteersSection: some View {
+        Button {
+            routePath.append(ReceiverHomeRoute.volunteers)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Active Volunteers")
+                        .font(HearthFont.display(18, weight: .bold))
+                        .foregroundStyle(HearthTokens.onSurface)
+                    Spacer()
+                    Label("\(store.activeReceiverVolunteersCount)", systemImage: "person.2.fill")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(HearthTokens.surfaceContainerLow, in: Capsule())
+                        .foregroundStyle(HearthTokens.primary)
+                }
+                HStack(spacing: 8) {
+                    if store.receiverVolunteersSorted.isEmpty {
+                        Text("No volunteers yet. Tap + to add local helpers.")
+                            .font(.subheadline)
+                            .foregroundStyle(HearthTokens.onSurfaceVariant)
+                    } else {
+                        ForEach(store.receiverVolunteersSorted.prefix(4)) { volunteer in
+                            volunteerAvatar(
+                                imageData: volunteer.imageData,
+                                status: volunteer.status,
+                                size: 36
+                            )
+                        }
+                        if store.receiverVolunteersSorted.count > 4 {
+                            Text("+\(store.receiverVolunteersSorted.count - 4)")
+                                .font(.caption.weight(.bold))
+                                .frame(width: 36, height: 36)
+                                .background(HearthTokens.primary, in: Circle())
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HearthTokens.onSurfaceVariant)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(HearthTokens.surfaceContainerLowest, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .hearthAmbientShadow()
+        }
+        .buttonStyle(.plain)
     }
 
     private func smallMetricCard(icon: String, tint: Color, value: String, title: String) -> some View {

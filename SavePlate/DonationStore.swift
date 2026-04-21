@@ -29,6 +29,7 @@ final class DonationStore {
     private let receiverPointsPerMealKey = "hearth.receiver.pointsPerMeal"
     private let receiverLifetimeMealsKey = "hearth.receiver.lifetimeMeals"
     private let receiverRidersKey = "hearth.receiver.riders"
+    private let receiverVolunteersKey = "hearth.receiver.volunteers"
     private let receiverStockLevelKey = "hearth.receiver.stockLevel"
     private let receiverProofsKey = "hearth.receiver.proofs"
     private let receiverReviewsKey = "hearth.receiver.reviews"
@@ -116,6 +117,27 @@ final class DonationStore {
             if let data = try? JSONEncoder().encode(receiverRiders) {
                 UserDefaults.standard.set(data, forKey: receiverRidersKey)
             }
+        }
+    }
+
+    var receiverVolunteers: [ReceiverVolunteer] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(receiverVolunteers) {
+                UserDefaults.standard.set(data, forKey: receiverVolunteersKey)
+            }
+        }
+    }
+
+    var activeReceiverVolunteersCount: Int {
+        receiverVolunteers.filter { $0.status == .active }.count
+    }
+
+    var receiverVolunteersSorted: [ReceiverVolunteer] {
+        receiverVolunteers.sorted { a, b in
+            if a.status != b.status {
+                return a.status == .active
+            }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
     }
 
@@ -255,6 +277,10 @@ final class DonationStore {
         if let data = UserDefaults.standard.data(forKey: receiverRidersKey),
            let decoded = try? JSONDecoder().decode([ReceiverRider].self, from: data) {
             receiverRiders = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: receiverVolunteersKey),
+           let decoded = try? JSONDecoder().decode([ReceiverVolunteer].self, from: data) {
+            receiverVolunteers = decoded
         }
         if let raw = UserDefaults.standard.string(forKey: receiverStockLevelKey),
            let level = ReceiverFoodStockLevel(rawValue: raw) {
@@ -551,6 +577,23 @@ final class DonationStore {
 
     func deleteReceiverRider(id: UUID) {
         receiverRiders.removeAll { $0.id == id }
+    }
+
+    func upsertReceiverVolunteer(_ volunteer: ReceiverVolunteer) {
+        if let i = receiverVolunteers.firstIndex(where: { $0.id == volunteer.id }) {
+            receiverVolunteers[i] = volunteer
+        } else {
+            receiverVolunteers.append(volunteer)
+        }
+    }
+
+    func deleteReceiverVolunteer(id: UUID) {
+        receiverVolunteers.removeAll { $0.id == id }
+    }
+
+    func updateReceiverVolunteerStatus(id: UUID, status: ReceiverVolunteerStatus) {
+        guard let i = receiverVolunteers.firstIndex(where: { $0.id == id }) else { return }
+        receiverVolunteers[i].status = status
     }
 
     func addReceiverDistributionProof(donationId: UUID?, caption: String, mediaKind: String, attachmentStub: String) {

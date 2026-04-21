@@ -206,6 +206,39 @@ struct ReceiverRider: Identifiable, Codable, Equatable {
     var phone: String
 }
 
+enum ReceiverVolunteerStatus: String, CaseIterable, Codable, Identifiable {
+    case active
+    case offline
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .active: "Active"
+        case .offline: "Offline"
+        }
+    }
+
+    var statusToken: String {
+        switch self {
+        case .active: "green"
+        case .offline: "gray"
+        }
+    }
+}
+
+/// Local helpers attached to a receiver account.
+struct ReceiverVolunteer: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var email: String
+    /// Optional image bytes for local profile preview.
+    var imageData: Data?
+    var status: ReceiverVolunteerStatus
+    /// Optional local assignment note (e.g. "Ward 3", "Nearby").
+    var localTag: String
+}
+
 /// Mock distribution proof (photo/video placeholder for demo persistence).
 struct ReceiverDistributionProof: Identifiable, Codable, Equatable {
     var id: UUID
