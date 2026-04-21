@@ -21,7 +21,7 @@ struct DonorAuthFlowView: View {
                 .navigationDestination(for: DonorAuthRoute.self) { route in
                     switch route {
                     case .signUp:
-                        DonorSignUpView(path: $path)
+                        DonorSignUpView()
                     }
                 }
         }
@@ -36,13 +36,13 @@ struct DonorSignInView: View {
     @Environment(AppSession.self) private var session
     @Environment(DonationStore.self) private var store
 
-    @State private var email = ""
+    @State private var identifier = ""
     @State private var password = ""
     @State private var errorMessage: String?
     @FocusState private var focusedField: Field?
 
     private enum Field {
-        case email, password
+        case identifier, password
     }
 
     var body: some View {
@@ -58,12 +58,12 @@ struct DonorSignInView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
-                    fieldLabel("Email")
-                    TextField("you@example.com", text: $email)
-                        .textContentType(.emailAddress)
+                    fieldLabel("Email or Phone Number")
+                    TextField("you@example.com or +91 9876543210", text: $identifier)
+                        .textContentType(.username)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
-                        .focused($focusedField, equals: .email)
+                        .focused($focusedField, equals: .identifier)
                         .padding(14)
                         .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
@@ -88,7 +88,9 @@ struct DonorSignInView: View {
                             .background(HearthTokens.primary, in: Capsule())
                             .foregroundStyle(.white)
                     }
-                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
+                    .disabled(identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
+
+                    googleSignInButton
 
                     VStack(spacing: 12) {
                         Text("New to The Conscious Hearth?")
@@ -130,9 +132,30 @@ struct DonorSignInView: View {
     }
 
     private var demoHint: some View {
-        Text("Demo: use Sign Up to create an account, then sign in with the same email and password.")
+        Text("Demo: create an account with email/phone, or try Google sign-in.")
             .font(.caption)
             .foregroundStyle(HearthTokens.onSurfaceVariant)
+    }
+
+    private var googleSignInButton: some View {
+        Button {
+            errorMessage = nil
+            auth.loginWithGoogle()
+            store.accountEmail = auth.currentUserIdentifier ?? ""
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "globe")
+                    .font(.subheadline.weight(.bold))
+                Text("Sign in with Google")
+                    .font(HearthFont.body(16, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color.white, in: Capsule())
+            .overlay(Capsule().stroke(HearthTokens.outlineVariant.opacity(0.4), lineWidth: 1))
+            .foregroundStyle(HearthTokens.onSurface)
+        }
+        .buttonStyle(.plain)
     }
 
     private func fieldLabel(_ title: String) -> some View {
@@ -143,23 +166,27 @@ struct DonorSignInView: View {
 
     private func signInTapped() {
         errorMessage = nil
-        if let err = auth.login(email: email, password: password) {
+        guard auth.isValidIdentifier(identifier) else {
+            errorMessage = "Enter a valid email or phone number."
+            return
+        }
+        if let err = auth.login(identifier: identifier, password: password) {
             errorMessage = err
             return
         }
-        store.accountEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.accountEmail = auth.currentUserIdentifier ?? identifier.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
 // MARK: - Sign Up
 
 struct DonorSignUpView: View {
-    @Binding var path: NavigationPath
     @Environment(AuthManager.self) private var auth
+    @Environment(\.dismiss) private var dismiss
 
-    @State private var email = ""
+    @State private var name = ""
+    @State private var identifier = ""
     @State private var password = ""
-    @State private var confirmPassword = ""
     @State private var errorMessage: String?
     @State private var successBanner = false
 
@@ -176,9 +203,15 @@ struct DonorSignUpView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
-                    fieldLabel("Email")
-                    TextField("you@example.com", text: $email)
-                        .textContentType(.emailAddress)
+                    fieldLabel("Name")
+                    TextField("Your full name", text: $name)
+                        .textContentType(.name)
+                        .padding(14)
+                        .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    fieldLabel("Email or Phone Number")
+                    TextField("you@example.com or +91 9876543210", text: $identifier)
+                        .textContentType(.username)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .padding(14)
@@ -186,11 +219,6 @@ struct DonorSignUpView: View {
 
                     fieldLabel("Password")
                     SecureField("At least 6 characters", text: $password)
-                        .padding(14)
-                        .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    fieldLabel("Confirm password")
-                    SecureField("Repeat password", text: $confirmPassword)
                         .padding(14)
                         .background(HearthTokens.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
@@ -225,23 +253,12 @@ struct DonorSignUpView: View {
         .hearthScreenBackground()
         .navigationTitle("Sign up")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    if !path.isEmpty { path.removeLast() }
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(HearthTokens.primary)
-                }
-            }
-        }
     }
 
     private var canSubmit: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && password.count >= 6
-            && password == confirmPassword
     }
 
     private func fieldLabel(_ title: String) -> some View {
@@ -253,19 +270,17 @@ struct DonorSignUpView: View {
     private func registerTapped() {
         errorMessage = nil
         successBanner = false
-        guard password == confirmPassword else {
-            errorMessage = "Passwords do not match."
+        guard auth.isValidIdentifier(identifier) else {
+            errorMessage = "Enter a valid email or phone number."
             return
         }
-        if let err = auth.register(email: email, password: password) {
+        if let err = auth.register(name: name, identifier: identifier, password: password) {
             errorMessage = err
             return
         }
         successBanner = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            if !path.isEmpty {
-                path.removeLast()
-            }
+            dismiss()
         }
     }
 }

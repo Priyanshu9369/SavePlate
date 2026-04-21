@@ -45,8 +45,8 @@ struct DonorProfileView: View {
                             .foregroundStyle(HearthTokens.primary)
                     }
 
-                    if let email = auth.currentUserEmail {
-                        Text("Signed in as \(email)")
+                    if let identifier = auth.currentUserIdentifier {
+                        Text("Signed in as \(identifier)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
